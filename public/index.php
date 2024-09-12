@@ -42,7 +42,9 @@ if (file_exists($maintenance = __DIR__.'/../../laravel/storage/framework/mainten
 //require __DIR__.'/../bootstrap/autoload.php';
 
 // require __DIR__.'/../vendor/autoload.php';
-require __DIR__.'/../../laravel/vendor/autoload.php';
+//  require __DIR__.'/../../laravel/vendor/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
+
 
 /*
 |--------------------------------------------------------------------------
@@ -56,8 +58,8 @@ require __DIR__.'/../../laravel/vendor/autoload.php';
 |
 */
 
-// $app = require_once __DIR__.'/../bootstrap/app.php';
-$app = require_once __DIR__.'/../../laravel/bootstrap/app.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
+// $app = require_once __DIR__.'/../../laravel/bootstrap/app.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -87,3 +89,34 @@ $response = $kernel->handle(
 )->send();
 
 $kernel->terminate($request, $response);
+
+
+/*
+|--------------------------------------------------------------------------
+| Check If The Application Is Under Maintenance
+|--------------------------------------------------------------------------
+|
+| If the application is in maintenance / demo mode via the "down" command
+| we will load this file so that any pre-rendered content can be shown
+| instead of starting the framework, which could cause an exception.
+|
+*/
+
+// if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.p
+
+/*
+|--------------------------------------------------------------------------
+| Register The Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader for
+| this application. We just need to utilize it! We'll simply require it
+| into the script here so we don't need to manually load our classes.
+|
+*/
+
+//require __DIR__.'/../../laravel/bootstrap/autoload.php';
+//require __DIR__.'/../bootstrap/autoload
+/*
+|--------------------------------------------------------------------------
+| Turn On The 
