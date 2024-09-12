@@ -1,0 +1,26 @@
+
+
+/* Put your custom styles here */
+
+@media (max-width:991px)
+{
+    .imagen-oculta
+    {
+        visibility: hidden;
+        height: 0px;
+    }
+}
+
+@media (min-width:992px)
+{
+@media (min-width:992px)
+{
+    .imagen-muestra
+    {
+        visibility:hidden;
+        height:0px;
+    }
+}
+
+}
+

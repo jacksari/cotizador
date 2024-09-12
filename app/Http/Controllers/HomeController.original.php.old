@@ -1,0 +1,607 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Alert;
+use Barryvdh\DomPDF\Facade as PDF;
+use Carbon\Carbon;
+use crocodicstudio\crudbooster\helpers\CRUDBooster;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+
+class HomeController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+        $curYear = date('Y');
+        $marcas = DB::table('marcas')->orderBy('nombre', 'asc')->get();
+        $usos = DB::table('usos')->where('estado','Activo')->get();
+        $data = compact('curYear','marcas','usos');
+
+        //return view('homesegurofacil', $data);
+        //return view('home', $data);
+        $custom_template = "_s268";
+        return view('home'.$custom_template, $data);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function create()
+    {
+        //-----Registra Cotización en BD
+
+        //-----Carga datos de la Vista
+        $id = 2;
+        $plantilla = self::getTemplateByQuotationId($id);
+        $data = self::getDataQuotation($id);
+        //-----Genera PDF con la vista Cotización
+        $pdf = PDF::loadView($plantilla,$data); //->save('cotizacion.pdf'); return $pdf->download($outputName . '.pdf');
+
+        //-----Envia Correo a cliente con Cotización
+        \Config::set('mail.driver',CRUDBooster::getSetting('smtp_driver'));
+        \Config::set('mail.host',CRUDBooster::getSetting('smtp_host'));
+        \Config::set('mail.port',CRUDBooster::getSetting('smtp_port'));
+        \Config::set('mail.username',CRUDBooster::getSetting('smtp_username'));
+        \Config::set('mail.password',CRUDBooster::getSetting('smtp_password'));
+
+        $to = 'calebsc@gmail.com';
+        $data = []; //$data = ['name'=>'John Done','email'=>'john@gmail.com'];
+        $template = 'send_quotation';
+
+        $template = CRUDBooster::first('cms_email_templates',['slug'=>$template]);
+        $html = $template->content;
+        foreach($data as $key=>$val) {
+            $html = str_replace('['.$key.']',$val,$html);
+            $template->subject = str_replace('['.$key.']', $val, $template->subject);
+        }
+        $subject = $template->subject; //$attachments = ($config['attachments'])?:array();
+
+        Mail::send("crudbooster::emails.blank",['content'=>$html],function($message) use ($to,$subject,$template,$pdf) {
+            $message->priority(1);
+            $message->to($to);
+
+            if($template->from_email) {
+                $from_name = ($template->from_name)?:CRUDBooster::getSetting('appname');
+                $message->from($template->from_email,$from_name);
+            }
+
+            if($template->cc_email) {
+                $message->cc($template->cc_email);
+            }
+
+            $outputName = str_random(10);
+            $message->attachData($pdf->output(), $outputName . ".pdf");
+
+            $message->subject($subject);
+        });
+
+        //-----Envia Correo al Administrador
+        $data = []; //$data = ['name'=>'John Done','email'=>'john@gmail.com'];
+        $to_receive_alerts = CRUDBooster::getSetting('email_quotation_alert');
+        CRUDBooster::sendEmail(['to'=>$to_receive_alerts,'data'=>$data,'template'=>'new_quotation_registered']);
+
+        //-----Genera Notificación al Administrador
+        $id_received_alert = self::getUserIdByEmail($to_receive_alerts);
+        $users_to_notify = array(1, $id_received_alert);//Id de super admin
+
+        $config['content'] = "Nueva cotización registrada por cliente";
+        $config['to'] = "/admin/cotizaciones/detail/".$id;
+        $config['id_cms_users'] = $users_to_notify;
+        CRUDBooster::sendNotification($config);
+
+        //-----Redirecciona al Home y muestra confirmación
+        $to = "/";
+        $message = "PAJARITO";
+        $type = "success";
+        //CRUDBooster::redirect($to,$message,$type);
+
+        return "OK";
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(Request $request)
+    {
+        //-----Registra Cotización en BD
+        $is_mailing = ($request->has('is_mailing')) ? $request->is_mailing : 0;
+        //$email_quotation_alert = CRUDBooster::getSetting('email_quotation_alert');
+        $email_quotation_alert = DB::table('cms_settings')->where('name','email_quotation_alert')->value('content');
+        $cms_users_id = self::getUserIdByEmail($email_quotation_alert);
+        $email_to_send_quotation = $request->email;
+        $nombreprospecto = $request->nombreprospecto;
+
+        $id = DB::table('cotizaciones')->insertGetId(
+            [
+                'created_at'=>Carbon::now()->format('Y-m-d H:i:s'),
+                'seguros_id' => 1, //Seguro Vehicular
+                'cms_users_id' => $cms_users_id,
+                'marcas_id' => $request->marcas_id,
+                'aniofabricacion' => $request->aniofabricacion,
+                'modelos_id' => $request->modelos_id,
+                'usos_id' => $request->usos_id,
+                'valormercado' => $request->valormercado,
+                'is_convertidogas' => $request->is_convertidogas,
+                'nombreprospecto' => $request->nombreprospecto,
+                'edad' => $request->edad,
+                'celular' => $request->celular,
+                'email' => $request->email,
+                'region' => $request->region,
+                'estado' => 'Pendiente',
+                'observacion' => '',
+                'is_mailing' => $is_mailing
+            ]
+        );
+
+        $curYear = date('Y');
+        $valormercado = (double)$request->valormercado;
+        $anioantiguedad = $curYear - (int)$request->aniofabricacion;//calcular antiguedad
+        $modelos_productos = DB::table('modelos_productos')->where([['modelos_id','=',$request->modelos_id],['usos_id','=',$request->usos_id]])->get();
+
+        foreach ($modelos_productos as $modelo_producto) {
+
+            $tasa = 0;
+            $primaneta = 0;
+            $primatotal = 0;
+            $descuento = 0;
+            $is_gps = 0;
+            $is_comonuevo = 0;//este es un dato manual para el administrador en su panel
+
+            if (!is_null($modelo_producto->productos_id) && $modelo_producto->productos_id > 0) {
+
+                $productos = DB::table('productos')->where('id',$modelo_producto->productos_id)->first();
+                $tasa = DB::table('tasas')->where([['productos_id','=',$modelo_producto->productos_id],['anioantiguedad','=',$anioantiguedad]])->value('porcentajetasa');
+
+                $primaneta = $valormercado * ($tasa / 100); //Si la tasa es CERO, primeaneta tendra como valor CERO
+
+                if ($productos->primaminima > 0 && $primaneta < $productos->primaminima && $primaneta > 0) {
+                    $primaneta = $productos->primaminima;
+                }
+
+                if ($modelo_producto->companias_id == 4) {
+                    $primatotal = round(($primaneta * (118.00 / 100)),2);
+                } else {
+                    $primatotal = round(($primaneta * (121.54 / 100)),2);
+                }
+
+                $primaneta = round($primaneta,2);
+
+                if ($valormercado >= $productos->gpsmontotope) {
+                    $is_gps = 1;
+                }
+
+                if ($modelo_producto->gpsantiguedadhasta > 0 && $anioantiguedad <= $modelo_producto->gpsantiguedadhasta) {
+                    $is_gps = 1;
+                }
+
+            }
+
+            DB::table('cotizaciones_detalles')->insert(
+                [
+                    'created_at'=>Carbon::now()->format('Y-m-d H:i:s'),
+                    'cotizaciones_id' => $id,
+                    'companias_id' => $modelo_producto->companias_id,
+                    'productos_id' => $modelo_producto->productos_id,
+                    'tasa' => $tasa,
+                    'primaneta' => $primaneta,
+                    'primatotal' => $primatotal,
+                    'descuento' => $descuento,
+                    'is_gps' => $is_gps,
+                    'is_comonuevo' => $is_comonuevo
+                ]
+            );
+
+        }
+
+        //-----Carga datos de la Vista
+        $plantilla = self::getTemplateByQuotationId($id);
+        $data = self::getDataQuotation($id);
+        //-----Genera PDF con la vista Cotización
+        $pdf = PDF::loadView($plantilla,$data); //->save('cotizacion.pdf'); return $pdf->download($outputName . '.pdf');
+
+        //-----Envia Correo a cliente con Cotización
+        \Config::set('mail.driver',CRUDBooster::getSetting('smtp_driver'));
+        \Config::set('mail.host',CRUDBooster::getSetting('smtp_host'));
+        \Config::set('mail.port',CRUDBooster::getSetting('smtp_port'));
+        \Config::set('mail.username',CRUDBooster::getSetting('smtp_username'));
+        \Config::set('mail.password',CRUDBooster::getSetting('smtp_password'));
+
+        $to = $email_to_send_quotation; //'calebsc@gmail.com';
+        $data_email = ['name'=>$nombreprospecto]; //$data_email = ['name'=>'John Done','email'=>'john@gmail.com'];
+        $template = 'send_quotation';
+
+        $template = CRUDBooster::first('cms_email_templates',['slug'=>$template]);
+        $html = $template->content;
+        foreach($data_email as $key=>$val) {
+            $html = str_replace('['.$key.']',$val,$html);
+            $template->subject = str_replace('['.$key.']', $val, $template->subject);
+        }
+        $subject = $template->subject; //$attachments = ($config['attachments'])?:array();
+
+        Mail::send("crudbooster::emails.blank",['content'=>$html],function($message) use ($to,$subject,$template,$pdf) {
+            $message->priority(1);
+            $message->to($to);
+
+            if($template->from_email) {
+                $from_name = ($template->from_name)?:CRUDBooster::getSetting('appname');
+                $message->from($template->from_email,$from_name);
+            }
+
+            if($template->cc_email) {
+                $message->cc($template->cc_email);
+            }
+
+            $outputName = str_random(10);
+            $message->attachData($pdf->output(), $outputName . ".pdf");
+
+            $message->subject($subject);
+        });
+
+        //-----Envia Correo al Administrador
+        $data_email = ['name'=>$nombreprospecto,'age'=>$request->edad,'phone'=>$request->celular,'email'=>$to]; //$data = ['name'=>'John Done','email'=>'john@gmail.com'];
+        $to_receive_alerts = $email_quotation_alert; //CRUDBooster::getSetting('email_quotation_alert');
+        //CRUDBooster::sendEmail(['to'=>$to_receive_alerts,'data'=>$data_email,'template'=>'new_quotation_registered']);
+        $template = CRUDBooster::first('cms_email_templates',['slug'=>'new_quotation_registered']);
+        $html = $template->content;
+        foreach($data_email as $key=>$val) {
+            $html = str_replace('['.$key.']',$val,$html);
+            $template->subject = str_replace('['.$key.']', $val, $template->subject);
+        }
+        $subject = $template->subject; //$attachments = ($config['attachments'])?:array();
+
+        Mail::send("crudbooster::emails.blank",['content'=>$html],function($message) use ($to_receive_alerts,$subject,$template,$pdf) {
+            $message->priority(1);
+            $message->to($to_receive_alerts);
+
+            if($template->from_email) {
+                $from_name = ($template->from_name)?:CRUDBooster::getSetting('appname');
+                $message->from($template->from_email,$from_name);
+            }
+
+            if($template->cc_email) {
+                $message->cc($template->cc_email);
+            }
+
+            $outputName = str_random(10);
+            $message->attachData($pdf->output(), $outputName . ".pdf");
+
+            $message->subject($subject);
+        });
+
+        //-----Genera Notificación al Administrador
+        $id_received_alert = $cms_users_id; // self::getUserIdByEmail($to_receive_alerts);
+        $users_to_notify = array($id_received_alert);//Id de super admin
+
+        $config['content'] = "Nueva cotización registrada por cliente";
+        $config['to'] = "/admin/cotizaciones/edit/".$id;
+        $config['id_cms_users'] = $users_to_notify;
+        CRUDBooster::sendNotification($config);
+
+        //-----Redirecciona al Home y muestra confirmación
+//        Alert::success('Hemos enviado una cotización a su cuenta de correo', 'Gracias por Contactarnos')->persistent("Cerrar");
+        //Alert::success('Te hemos enviado una cotización a tu correo. Uno de nuestros ejecutivos se pondrá en contacto contigo.', 'Gracias por confiar en SEGURO RÁPIDO')->persistent("Cerrar");
+        //Alert::success('Te hemos enviado una cotización a tu correo. Uno de nuestros ejecutivos se pondrá en contacto contigo.', 'Gracias por confiar en CENTRO SEGURO')->persistent("Cerrar");
+        $appname = CRUDBooster::getSetting('appname');
+        Alert::success('Te hemos enviado una cotización a tu correo. Uno de nuestros ejecutivos se pondrá en contacto contigo.', 'Gracias por confiar en ' . $appname )->persistent("Cerrar");
+        return redirect('/');
+        $custom_template = "_s268";
+        //return View("resultado/".$plantilla.$custom_template, $data);
+        //return $request->all();
+
+    }
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function show($id)
+    {
+        //public_path();
+        return url('uploads/2017-04/rimac.png');
+    }
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function showpdf($id)
+    {
+        //$data = self::getDataQuotation($id);
+        //$pdf = PDF::loadView('cotizacion',$data);
+        //return $pdf->download('quotation.pdf');
+        $plantilla = self::getTemplateByQuotationId($id);
+        $data = self::getDataQuotation($id);
+        $pdf = App::make('dompdf.wrapper');
+        $pdf->loadView($plantilla,$data);
+        return $pdf->stream();
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function edit($id)
+    {
+        //
+        //Alert::success('Success Message', 'Optional Title');
+        //Alert::error('Something went wrong', 'Oops!');
+        //Alert::success('Success Message', 'Optional Title')->autoclose(3000);
+        Alert::success('Hemos enviado una cotización a su cuenta de correo', 'Gracias por Contactarnos')->persistent("Cerrar");
+        return redirect('/');
+    }
+
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, $id)
+    {
+        //
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+        //
+    }
+
+    public function cotizacion($id)
+    {
+        $plantilla = self::getTemplateByQuotationId($id);
+        $data = self::getDataQuotation($id);
+
+        $custom_template = "";
+
+//        return View("resultado/".$plantilla.$custom_template,$data);
+        return View($plantilla,$data);
+        //return View("resultado_cotizacion",$data);
+    }
+
+    public static function getDataQuotation($id){
+
+        $cotizacion = DB::table('cotizaciones')->where('id',$id)->first();
+
+        $rimac = 1;
+        $pacifico = 2;
+        $lapositiva = 3;
+        $hdi = 4;
+        $mapfre = 5;
+        $logo_cotizacion = CRUDBooster::getSetting('quotation_logo');
+        $telefono_cotizacion = CRUDBooster::getSetting('quotation_telephone');
+
+        $uso = DB::table('usos')->where('id',$cotizacion->usos_id)->value('nombre');
+        $marca = DB::table('marcas')->where('id',$cotizacion->marcas_id)->value('nombre');
+        $modelo = DB::table('modelos')->where('id',$cotizacion->modelos_id)->value('nombre');
+        $aniofabricacion = $cotizacion->aniofabricacion;
+        $valormercado = $cotizacion->valormercado;
+        $validezini = (is_null($cotizacion->updated_at)) ? date('d/m/Y',strtotime($cotizacion->created_at)): date('d/m/Y',strtotime($cotizacion->updated_at));
+        $validezfin = (is_null($cotizacion->updated_at)) ? date('d/m/Y',strtotime($cotizacion->created_at . " +3 days")): date('d/m/Y',strtotime($cotizacion->updated_at . " +3 days"));
+        $nombreprospecto = (is_null($cotizacion->nombreprospecto) || $cotizacion->nombreprospecto == '') ? '': 'Prospecto: '.$cotizacion->nombreprospecto;
+        $cotizacion_id = str_pad($cotizacion->id, 10, "0", STR_PAD_LEFT);
+        $usuario_responsable = DB::table('cms_users')->where('id',$cotizacion->cms_users_id)->first();
+        $responsable = $usuario_responsable->name;
+        $emailresponsable = $usuario_responsable->email;
+        $subagente = DB::table('subagentes')->where('id',$usuario_responsable->subagentes_id)->value('nombre');
+        $emailprospecto = $cotizacion->email;
+        $celularprospecto = $cotizacion->celular;
+        $region = $cotizacion->region;
+        $observacion = $cotizacion->observacion;
+        $convertidogas = $cotizacion->is_convertidogas == 0 ? 'No': 'Si';
+//        $logo1 = url(DB::table('companias')->where('id',$pacifico)->value('logo'));
+//        $logo2 = url(DB::table('companias')->where('id',$lapositiva)->value('logo'));
+//        $logo3 = url(DB::table('companias')->where('id',$rimac)->value('logo'));
+//        $logo4 = url(DB::table('companias')->where('id',$mapfre)->value('logo'));
+//        $logo5 = url(DB::table('companias')->where('id',$hdi)->value('logo'));
+
+        $table_column_width = is_null($cotizacion->companias_id) ? 16.67 : 50;
+        $table_td_colspan = is_null($cotizacion->companias_id) ? 6 : 2;
+
+        $col2_display = (is_null($cotizacion->companias_id) ? 'table-cell':(($cotizacion->companias_id == $pacifico) ? 'table-cell':'none') );
+        $col3_display = (is_null($cotizacion->companias_id) ? 'table-cell':(($cotizacion->companias_id == $lapositiva) ? 'table-cell':'none') );
+        $col4_display = (is_null($cotizacion->companias_id) ? 'table-cell':(($cotizacion->companias_id == $rimac) ? 'table-cell':'none') );
+        $col5_display = (is_null($cotizacion->companias_id) ? 'table-cell':(($cotizacion->companias_id == $mapfre) ? 'table-cell':'none') );
+        $col6_display = (is_null($cotizacion->companias_id) ? 'table-cell':(($cotizacion->companias_id == $hdi) ? 'table-cell':'none') );
+
+        $logo1 = DB::table('companias')->where('id',$pacifico)->value('logo');
+        $logo2 = DB::table('companias')->where('id',$lapositiva)->value('logo');
+        $logo3 = DB::table('companias')->where('id',$rimac)->value('logo');
+        $logo4 = DB::table('companias')->where('id',$mapfre)->value('logo');
+        $logo5 = DB::table('companias')->where('id',$hdi)->value('logo');
+
+        $cotdet1 = DB::table('cotizaciones_detalles')->where([['cotizaciones_id','=',$id],['companias_id','=',$pacifico]])->first();
+        $cotdet2 = DB::table('cotizaciones_detalles')->where([['cotizaciones_id','=',$id],['companias_id','=',$lapositiva]])->first();
+        $cotdet3 = DB::table('cotizaciones_detalles')->where([['cotizaciones_id','=',$id],['companias_id','=',$rimac]])->first();
+        $cotdet4 = DB::table('cotizaciones_detalles')->where([['cotizaciones_id','=',$id],['companias_id','=',$mapfre]])->first();
+        $cotdet5 = DB::table('cotizaciones_detalles')->where([['cotizaciones_id','=',$id],['companias_id','=',$hdi]])->first();
+
+        $prima1 = (is_numeric($cotdet1->primatotal) && $cotdet1->primatotal > 0)?number_format(round($cotdet1->primatotal, 2),2): 'NO COTIZABLE';
+        $prima2 = (is_numeric($cotdet2->primatotal) && $cotdet2->primatotal > 0)?number_format(round($cotdet2->primatotal, 2),2): 'NO COTIZABLE';
+        $prima3 = (is_numeric($cotdet3->primatotal) && $cotdet3->primatotal > 0)?number_format(round($cotdet3->primatotal, 2),2): 'NO COTIZABLE';
+        $prima4 = (is_numeric($cotdet4->primatotal) && $cotdet4->primatotal > 0)?number_format(round($cotdet4->primatotal, 2),2): 'NO COTIZABLE';
+        $prima5 = (is_numeric($cotdet5->primatotal) && $cotdet5->primatotal > 0)?number_format(round($cotdet5->primatotal, 2),2): 'NO COTIZABLE';
+
+        $primatot1 = (is_numeric($cotdet1->primatotal) && $cotdet1->primatotal > 0)?$cotdet1->primatotal: 0;
+        $primatot2 = (is_numeric($cotdet2->primatotal) && $cotdet2->primatotal > 0)?$cotdet2->primatotal: 0;
+        $primatot3 = (is_numeric($cotdet3->primatotal) && $cotdet3->primatotal > 0)?$cotdet3->primatotal: 0;
+        $primatot4 = (is_numeric($cotdet4->primatotal) && $cotdet4->primatotal > 0)?$cotdet4->primatotal: 0;
+        $primatot5 = (is_numeric($cotdet5->primatotal) && $cotdet5->primatotal > 0)?$cotdet5->primatotal: 0;
+
+        $productos1 = DB::table('productos')->where('id',$cotdet1->productos_id)->first();
+        $productos2 = DB::table('productos')->where('id',$cotdet2->productos_id)->first();
+        $productos3 = DB::table('productos')->where('id',$cotdet3->productos_id)->first();
+        $productos4 = DB::table('productos')->where('id',$cotdet4->productos_id)->first();
+        $productos5 = DB::table('productos')->where('id',$cotdet5->productos_id)->first();
+
+        $factores1 = DB::table('factores')->where([['companias_id','=',$pacifico]])->orderBy('numerocuota', 'asc')->get();
+        $factores2 = DB::table('factores')->where([['companias_id','=',$lapositiva]])->orderBy('numerocuota', 'asc')->get();
+        $factores3 = DB::table('factores')->where([['companias_id','=',$rimac]])->orderBy('numerocuota', 'asc')->get();
+        $factores4 = DB::table('factores')->where([['companias_id','=',$mapfre]])->orderBy('numerocuota', 'asc')->get();
+        $factores5 = DB::table('factores')->where([['companias_id','=',$hdi]])->orderBy('numerocuota', 'asc')->get();
+
+        $cuotasA = ['No','No','No','No','No']; $cuotasB = ['No','No','No','No','No']; $cuotasC = ['No','No','No','No','No']; $cuotasD = ['No','No','No','No','No']; $cuotasE = ['No','No','No','No','No'];
+
+        $regcount = 0;
+        foreach ($factores1 as $factor1) {
+
+            if (!is_null($productos1)) {
+                $cuotasA[$regcount] = $factor1->numerocuota.' cuotas de '.round($primatot1 * $factor1->porcentaje, 2);
+            }
+            $regcount++;
+        }
+
+        $regcount = 0;
+        foreach ($factores2 as $factor2) {
+
+            if (!is_null($productos2)) {
+                $cuotasB[$regcount] = $factor2->numerocuota.' cuotas de '.round($primatot2 * $factor2->porcentaje, 2);
+            }
+            $regcount++;
+        }
+
+        $regcount = 0;
+        foreach ($factores3 as $factor3) {
+
+            if (!is_null($productos3)) {
+                $cuotasC[$regcount] = $factor3->numerocuota.' cuotas de '.round($primatot3 * $factor3->porcentaje, 2);
+            }
+            $regcount++;
+        }
+
+        $regcount = 0;
+        foreach ($factores4 as $factor4) {
+
+            if (!is_null($productos4)) {
+                $cuotasD[$regcount] = $factor4->numerocuota.' cuotas de '.round($primatot4 * $factor4->porcentaje, 2);
+            }
+            $regcount++;
+        }
+
+        $regcount = 0;
+        foreach ($factores5 as $factor5) {
+
+            if (!is_null($productos5)) {
+                $cuotasE[$regcount] = $factor5->numerocuota.' cuotas de '.round($primatot5 * $factor5->porcentaje, 2);
+            }
+            $regcount++;
+        }
+
+        /*$cuotas1 = (is_null($productos1))? 'No':(($productos1->is_diezcuotas > 0)?'10 cuotas de '.round($primatot1/10,2): (($productos1->is_seiscuotas > 0)?'6 cuotas de '.round($primatot1/6,2): (($productos1->is_cincocuotas > 0)?'5 cuotas de '.round($primatot1/5,2): (($productos1->is_cuatrocuotas > 0)?'4 cuotas de '.round($primatot1/4,2):'No'))));
+        $cuotas2 = (is_null($productos2))? 'No':(($productos2->is_diezcuotas > 0)?'10 cuotas de '.round($primatot2/10,2): (($productos2->is_seiscuotas > 0)?'6 cuotas de '.round($primatot2/6,2): (($productos2->is_cincocuotas > 0)?'5 cuotas de '.round($primatot2/5,2): (($productos2->is_cuatrocuotas > 0)?'4 cuotas de '.round($primatot2/4,2):'No'))));
+        $cuotas3 = (is_null($productos3))? 'No':(($productos3->is_diezcuotas > 0)?'10 cuotas de '.round($primatot3/10,2): (($productos3->is_seiscuotas > 0)?'6 cuotas de '.round($primatot3/6,2): (($productos3->is_cincocuotas > 0)?'5 cuotas de '.round($primatot3/5,2): (($productos3->is_cuatrocuotas > 0)?'4 cuotas de '.round($primatot3/4,2):'No'))));
+        $cuotas4 = (is_null($productos4))? 'No':(($productos4->is_diezcuotas > 0)?'10 cuotas de '.round($primatot4/10,2): (($productos4->is_seiscuotas > 0)?'6 cuotas de '.round($primatot4/6,2): (($productos4->is_cincocuotas > 0)?'5 cuotas de '.round($primatot4/5,2): (($productos4->is_cuatrocuotas > 0)?'4 cuotas de '.round($primatot4/4,2):'No'))));
+        $cuotas5 = (is_null($productos5))? 'No':(($productos5->is_diezcuotas > 0)?'10 cuotas de '.round($primatot5/10,2): (($productos5->is_seiscuotas > 0)?'6 cuotas de '.round($primatot5/6,2): (($productos5->is_cincocuotas > 0)?'5 cuotas de '.round($primatot5/5,2): (($productos5->is_cuatrocuotas > 0)?'4 cuotas de '.round($primatot5/4,2):'No'))));*/
+
+        $gps1 = (is_numeric($cotdet1->is_gps) && $cotdet1->is_gps == 1)? 'Si': 'No';
+        $gps2 = (is_numeric($cotdet2->is_gps) && $cotdet2->is_gps == 1)? 'Si': 'No';
+        $gps3 = (is_numeric($cotdet3->is_gps) && $cotdet3->is_gps == 1)? 'Si': 'No';
+        $gps4 = (is_numeric($cotdet4->is_gps) && $cotdet4->is_gps == 1)? 'Si': 'No';
+        $gps5 = (is_numeric($cotdet5->is_gps) && $cotdet5->is_gps == 1)? 'Si': 'No';
+
+        $deducibles1 = (DB::table('deducibles')->where([['productos_id','=',$cotdet1->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->count() > 0)? (DB::table('deducibles')->where([['productos_id','=',$cotdet1->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->pluck('descripcion')): (DB::table('deducibles')->where('productos_id','=',$cotdet1->productos_id)->whereNull('modelos_id')->pluck('descripcion'));
+        $deducibles2 = (DB::table('deducibles')->where([['productos_id','=',$cotdet2->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->count() > 0)? (DB::table('deducibles')->where([['productos_id','=',$cotdet2->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->pluck('descripcion')): (DB::table('deducibles')->where('productos_id','=',$cotdet2->productos_id)->whereNull('modelos_id')->pluck('descripcion'));
+        $deducibles3 = (DB::table('deducibles')->where([['productos_id','=',$cotdet3->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->count() > 0)? (DB::table('deducibles')->where([['productos_id','=',$cotdet3->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->pluck('descripcion')): (DB::table('deducibles')->where('productos_id','=',$cotdet3->productos_id)->whereNull('modelos_id')->pluck('descripcion'));
+        $deducibles4 = (DB::table('deducibles')->where([['productos_id','=',$cotdet4->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->count() > 0)? (DB::table('deducibles')->where([['productos_id','=',$cotdet4->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->pluck('descripcion')): (DB::table('deducibles')->where('productos_id','=',$cotdet4->productos_id)->whereNull('modelos_id')->pluck('descripcion'));
+        $deducibles5 = (DB::table('deducibles')->where([['productos_id','=',$cotdet5->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->count() > 0)? (DB::table('deducibles')->where([['productos_id','=',$cotdet5->productos_id],['modelos_id','=',$cotizacion->modelos_id]])->pluck('descripcion')): (DB::table('deducibles')->where('productos_id','=',$cotdet5->productos_id)->whereNull('modelos_id')->pluck('descripcion'));
+
+        $data = compact('marca','modelo','aniofabricacion','valormercado','uso','nombreprospecto','cotizacion_id',
+            'responsable','logo_cotizacion','telefono_cotizacion','subagente',
+            'validezini','validezfin','logo1','logo2','logo3','logo4','logo5',
+            'prima1','prima2','prima3','prima4','prima5',
+            'gps1','gps2','gps3','gps4','gps5',
+            'cuotasA','cuotasB','cuotasC','cuotasD','cuotasE','table_column_width','table_td_colspan',
+            'col2_display', 'col3_display', 'col4_display', 'col5_display', 'col6_display',
+            'deducibles1','deducibles2','deducibles3','deducibles4','deducibles5','emailresponsable',
+            'emailprospecto','celularprospecto','region','observacion','convertidogas');
+
+        return $data;
+    }
+
+    public static function getUserIdByEmail($email){
+
+        $query = DB::table('cms_users')->where('email','=',$email)->first();
+
+        return $query->id;
+    }
+
+    public function getModelosByMarcaId($id){
+
+
+        return DB::table('modelos')->where('marcas_id',$id)->orderBy('nombre', 'asc')->get();
+    }
+
+    public function getModelo($id){
+
+        return DB::table('modelos')->where('id',$id)->get();
+
+    }
+
+    public function getModeloProducto($modelos_id,$companias_id,$usos_id){
+
+        return DB::table('modelos_productos')->where([['modelos_id','=',$modelos_id],['companias_id','=',$companias_id],['usos_id','=',$usos_id]])->get();
+
+    }
+
+    public static function getTemplateByQuotationId($id){
+
+        $usos_id = DB::table('cotizaciones')->where('id',$id)->value('usos_id');
+
+        return DB::table('usos')->where('id',$usos_id)->value('template');
+    }
+
+    public function sendattachexample()
+    {
+//        $id = 2;
+//        $plantilla = self::getTemplateByQuotationId($id);
+//        $data = self::getDataQuotation($id);
+//        $pdf = PDF::loadView($plantilla,$data)->save('quotation/cotizacion.pdf');
+
+        $files = [];
+        //$files[] = 'quotation/cotizacion.pdf'; //$files[] = public_path(). '/uploads/2017-04/rimac.png';
+        $data = ['name'=>'John Done','email'=>'john@gmail.com'];
+        CRUDBooster::sendEmail(['to'=>'calebsc@gmail.com','data'=>$data,'template'=>'send_quotation','attachments'=>$files]);
+        return "ok";
+    }
+
+    public static function sendQuotationByEmail($id)
+    {
+        $query = DB::table('cotizaciones')->where('id',$id)->first();
+        $query2 = DB::table('cms_users')->where('id',$query->cms_users_id)->first();
+        $outputName = str_random(10);
+        $plantilla = self::getTemplateByQuotationId($id);
+        $data = self::getDataQuotation($id);
+        $pdf = PDF::loadView($plantilla,$data)->save('quotation/'.$outputName.'.pdf');
+
+        //$files = [];
+        $files[] = 'quotation/'.$outputName.'.pdf'; //$files[] = public_path(). '/uploads/2017-04/rimac.png';
+        $data = ['name'=>$query->nombreprospecto,'email'=>$query->email,'executive'=>$query2->name,'email_executive'=>$query2->email];
+        CRUDBooster::sendEmail(['to'=>$query->email,'data'=>$data,'template'=>'send_quotation2','attachments'=>$files]);
+        return "ok";
+    }
+}

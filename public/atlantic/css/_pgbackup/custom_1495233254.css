@@ -1,0 +1,28 @@
+
+
+/* Put your custom styles here */
+
+@media (max-width:991px)
+{
+    .imagen-oculta
+    {
+        visibility: hidden;
+        height: 0px;
+    }
+}
+
+@media (min-width:992px)
+{
+    .imagen-muestra
+    {
+        visibility: hidden;
+        height: 0px;
+    }
+}
+
+.sombra-texto-inicio
+{
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.40);
+}
+
+
