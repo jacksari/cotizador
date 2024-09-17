@@ -31,4 +31,12 @@ class ApiCotizacionesController extends Controller
             'message' => 'Cotizacion actualizada'
         ];
     }
+
+    //sp_get_cotizacion_by_id
+    public function getCotizacionById($cotizacion_id)
+    {
+        $cotizacion = DB::select('call sp_get_cotizacion_by_id(?)', [$cotizacion_id]);
+
+        return $cotizacion;
+    }
 }
