@@ -403,12 +403,22 @@
                 @endforeach
             </tr>
             @endforeach
+            
 
             <tr>
                 <td colspan="{{ $count_cols }}" class="subtitulo">Deducibles</td>
             </tr>
 
+            @foreach ($deducibles as $key => $deducible)
             <tr>
+                <td class="text-left">{{ $deducible['name'] }}</td>
+                @foreach ($companies as $key_company => $company)
+                    <td class="text-center">{{$company['deducibles'][$key]['description']}}</td>
+                @endforeach
+            </tr>
+            @endforeach
+
+            <!-- <tr>
                 <td></td>
                 @foreach ($companies as $company)
                 <td class="text-center" style="padding: 0;">
@@ -432,7 +442,7 @@
 
                 </td>
                 @endforeach
-            </tr>
+            </tr> -->
 
 
 

@@ -53,6 +53,23 @@ trait PdfTrait
         }
         $data->coberturas = $coberturas;
 
+         //extract deducibles
+         $deducibles = collect([]);
+         foreach ($data->companies as $company) {
+             if (isset($company->deducibles)) {
+                 foreach ($company->deducibles as $deducible) {
+                     $item_deducible = [
+                         'concepto_id' => $deducible->concepto_id,
+                         'name' => $deducible->name,
+                         'description' => $deducible->description
+                     ];
+                     $deducibles->push($item_deducible);
+                 }
+             }
+         }
+         $deducibles = array_values($deducibles->unique('concepto_id')->all());
+         $data->deducibles = $deducibles;
+
         $logo_cotizacion = CRUDBooster::getSetting('quotation_logo');
 
         //logo logo_cotizacion
@@ -70,10 +87,12 @@ trait PdfTrait
         // validar coberturas, deducibles, is_gps, logo
         foreach ($data->companies as $key => $company) {
             if ($company->company_id == 2) {
-                $data->companies[$key]->primatotal = $data->pacifico_prima;
+                // $data->companies[$key]->primatotal = $data->pacifico_prima;
+                $data->pacifico_prima != null && ($data->companies[$key]->primatotal = $data->pacifico_prima);
             }
             if ($company->company_id == 4) {
-                $data->companies[$key]->primatotal = $data->hdi_prima;
+                // $data->companies[$key]->primatotal = $data->hdi_prima;
+                $data->hdi_prima != null && ($data->companies[$key]->primatotal = $data->hdi_prima);
             }
 
             //crear tabla con coberturas, en caso no encuentre coberturas poner un texto que diga "No hay coberturas"
@@ -98,6 +117,29 @@ trait PdfTrait
             }
             $data->companies[$key]->coberturas = $new_coberturas;
 
+
+            //crear tabla con deducibles, en caso no encuentre deducibles poner un texto que diga "No hay deducibles"
+            $new_deducibles = collect([]);
+            $deducibles_company = collect($company->deducibles);
+            foreach ($deducibles as $deducible) {
+                //exist deducible en $deducibles_company
+                $deducible_exist = $deducibles_company->where('concepto_id', $deducible['concepto_id'])->first();
+                if ($deducible_exist) {
+                    $new_deducibles->push([
+                        'name' => $deducible['name'],
+                        'concepto_id' => $deducible['concepto_id'],
+                        'description' => $deducible_exist->description
+                    ]);
+                } else {
+                    $new_deducibles->push([
+                        'name' => null,
+                        'concepto_id' => null,
+                        'description' => null
+                    ]);
+                }
+            }
+            $data->companies[$key]->deducibles = $new_deducibles;
+
             //si los factores son menores al max, agregar en blanco
             $new_factores = collect([]);
             foreach ($company->factores as $factor) {
@@ -105,6 +147,7 @@ trait PdfTrait
                     'id' => $factor->id,
                     'cuota' => $factor->cuota,
                     'percentage' => $factor->percentage,
+                    'description' => $factor->description,
                     'text_description' => $factor->description,
                     'text_cuota' => "$factor->cuota cuotas de " . round($company->primatotal * $factor->percentage, 2)
                 ]);
@@ -114,6 +157,7 @@ trait PdfTrait
                     'id' => null,
                     'cuota' => null,
                     'percentage' => null,
+                    'description' => null,
                     'text_description' => null,
                     'text_cuota' => null
                 ]);

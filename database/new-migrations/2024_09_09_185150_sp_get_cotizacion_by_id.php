@@ -25,6 +25,7 @@ class SpGetCotizacionById extends Migration
             )
             BEGIN
 
+                set @plan_id = (select planes_id from cotizaciones where id = t_cotizacion_id);
                 set @companies = (
                     select 
                         json_arrayagg(json_object(
@@ -35,6 +36,7 @@ class SpGetCotizacionById extends Migration
                             'company_name', x.company_name,
                             'company_logo', x.company_logo,
                             'primatotal', x.primatotal,
+                            'primaneta', x.primaneta,
                             'is_gps', x.is_gps,
                             'coberturas', x.coberturas,
                             'deducibles', x.deducibles
@@ -48,6 +50,7 @@ class SpGetCotizacionById extends Migration
                             c2.logo company_logo,
                             y.factores,
                             y.primatotal,
+                            y.primaneta,
                             y.is_gps,
                             y.coberturas,
                             y.deducibles,
@@ -60,6 +63,7 @@ class SpGetCotizacionById extends Migration
                                 p.id as product_id,
                                 p.nombre as product_name,
                                 fc.factores,
+                                cd.primaneta,
                                 cd.primatotal,
                                 cd.is_gps,
                                 cobe.`values` as coberturas,
@@ -77,7 +81,7 @@ class SpGetCotizacionById extends Migration
                                         'description', f.descripcion
                                     )) factores
                                 from factores f 
-                                where f.planes_id = 1
+                                where f.planes_id = @plan_id
                                 and f.companias_id in (
                                     select uc.companias_id from usos_companias uc 
                                     where uc.cotizaciones_id = t_cotizacion_id
@@ -151,7 +155,8 @@ class SpGetCotizacionById extends Migration
                     m2.nombre as modelo_nombre,
                     u.nombre as uso_nombre,
                     c.companies as companies_history,
-                    @companies as companies
+                    @companies as companies,
+                    @plan_id as plan_id
                 from cotizaciones c 
                 join marcas m on m.id = c.marcas_id 
                 join modelos m2 on m2.id = c.modelos_id 
@@ -163,7 +168,7 @@ class SpGetCotizacionById extends Migration
             END
         ");
 
-        // dd('OK SPGetCotizacionById');
+        dd('OK SPGetCotizacionById');
     }
 
     /**
