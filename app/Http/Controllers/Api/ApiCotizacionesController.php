@@ -205,7 +205,6 @@ class ApiCotizacionesController extends Controller
         $data->cotizacion_id = str_pad($data->cotizacion_id, 10, "0", STR_PAD_LEFT);
 
         $data->logo_cotizacion = $base64_logo_cotizacion;
-        $data->base64_redes_sociales = $this->getBaseRedesSociales();
 
         return $data;
     }
