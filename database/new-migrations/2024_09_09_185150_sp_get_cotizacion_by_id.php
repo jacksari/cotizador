@@ -168,7 +168,7 @@ class SpGetCotizacionById extends Migration
             END
         ");
 
-        dd('OK SPGetCotizacionById');
+        // dd('OK SPGetCotizacionById');
     }
 
     /**
