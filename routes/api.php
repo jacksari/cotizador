@@ -23,3 +23,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/cotizaciones', [ApiCotizacionesController::class, 'getCotizaciones']);
 Route::put('/cotizaciones/{cotizacion_id}/status', [ApiCotizacionesController::class, 'updateStatusCotizacion']);
+//getCotizacionById
+Route::get('/cotizaciones/{cotizacion_id}', [ApiCotizacionesController::class, 'getCotizacionById']);
