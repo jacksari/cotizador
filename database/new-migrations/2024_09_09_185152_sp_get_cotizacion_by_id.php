@@ -99,6 +99,7 @@ class SpGetCotizacionById extends Migration
                                 from deducibles d 
                                 left join conceptos c on c.id = d.conceptos_id 
                                 where d.conceptos_tipos_id = 1
+                                and d.conceptos_id is not null
                                 group by d.productos_id 
                             ) cobe on cobe.productos_id = p.id
                             left join (
