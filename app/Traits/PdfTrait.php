@@ -51,6 +51,12 @@ trait PdfTrait
                 }
             }
         }
+        //filtrar unicos
+        $coberturas = array_values($coberturas->unique('concepto_id')->all());
+        //eliminar los que tienen concepto_id null
+        $coberturas = array_filter($coberturas, function ($item) {
+            return $item['concepto_id'] != null;
+        });
         $data->coberturas = $coberturas;
 
          //extract deducibles
