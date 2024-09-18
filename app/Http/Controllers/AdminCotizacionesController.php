@@ -1150,30 +1150,32 @@ class AdminCotizacionesController extends \crocodicstudio\crudbooster\controller
                 const submitButton2 = document.getElementById('guardar-y-anadir-otro-btn');
                 
                 // validar si existen los botones
-                if (!submitButton && !submitButton2) {
+                console.log(submitButton, submitButton2);
+                if (!submitButton || !submitButton2) {
                     console.log('No se encontraron los botones de envío');
                     return;
                     } else {
                         console.log('Se encontraron los botones de envío');
                 }
 
-                submitButton.disabled = true; // El botón comienza deshabilitado
-                submitButton2.disabled = true; // El botón comienza deshabilitado
+                submitButton && (submitButton.disabled = true); // El botón comienza deshabilitado
+                submitButton2 && (submitButton2.disabled = true); // El botón comienza deshabilitado
 
     
                 function checkFormValidity() {
-                    // // Obtener todos los campos con errores
-                    const errorMessages = document.querySelectorAll('.error-message');
-                    const hasError = Array.from(errorMessages).some(span => span.textContent !== '');
-    
-                    // // Deshabilitar el botón si hay errores
-                    submitButton.disabled = hasError;
-                    submitButton2.disabled = hasError;
+
                     // deshabilitar si los campos obligatorios no estan llenos
                     const requiredInputs = document.querySelectorAll('input[required]');
                     const hasEmptyRequired = Array.from(requiredInputs).some(input => !input.value);
-                    submitButton.disabled = hasEmptyRequired;
-                    submitButton2.disabled = hasEmptyRequired;
+                    submitButton && (submitButton.disabled = hasEmptyRequired);
+                    submitButton2 && (submitButton2.disabled = hasEmptyRequired);
+
+                    // // Obtener todos los campos con errores
+                    const errorMessages = document.querySelectorAll('.error-message');
+                    const hasError = Array.from(errorMessages).some(span => span.textContent !== '');
+                    // // Deshabilitar el botón si hay errores
+                    submitButton && (submitButton.disabled = hasError);
+                    submitButton2 && (submitButton2.disabled = hasError);
 
                 }
 
