@@ -38,6 +38,7 @@ class ApiCotizacionesController extends Controller
     public function getCotizacionById($cotizacion_id)
     {
         $cotizacion = $this->getDataQuotationNew($cotizacion_id);
+        $cotizacion->companies_history = json_decode($cotizacion->companies_history);
 
         return $cotizacion;
     }
