@@ -458,6 +458,112 @@ class AdminCotizacionesController extends \crocodicstudio\crudbooster\controller
                         //$('#modelos_id').trigger('change');
                         
                     })
+
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Obtener el botón que tiene el valor 'Guardar y Añadir otro'
+                        const guardarYAnadirOtroBtn = document.querySelector('input[type=\"submit\"][value=\"Guardar y Añadir otro\"]');
+                        if (guardarYAnadirOtroBtn) {
+                            guardarYAnadirOtroBtn.id = 'guardar-y-anadir-otro-btn';
+                        }
+
+                        // Obtener el botón que tiene el valor 'Guardar'
+                        const guardarBtn = document.querySelector('input[type=\"submit\"][value=\"Guardar\"]');
+                        if (guardarBtn) {
+                            guardarBtn.id = 'guardar-btn';
+                        }
+                    });   
+
+                    document.addEventListener('DOMContentLoaded', function() {
+        
+                        // Función genérica para validar y mostrar mensajes de error
+                        function validateInput(input, pattern, errorMessage, additionalCheck = null) {
+
+                            // validar si el input existe
+                            if (!input) {
+                                return;
+                            }
+
+                            let errorMsg = input.parentNode.querySelector('.error-message');
+                            
+                            if (!errorMsg) {
+                                errorMsg = document.createElement('span');
+                                errorMsg.classList.add('error-message');
+                                errorMsg.style.color = 'red';
+                                input.parentNode.appendChild(errorMsg);
+                            }
+            
+                            input.addEventListener('input', function() {
+                                const value = input.value;
+                                errorMsg.textContent = '';
+            
+                                // Verificar si cumple el patrón o alguna validación adicional
+                                if (!pattern.test(value) || (additionalCheck && !additionalCheck(value))) {
+                                    errorMsg.textContent = errorMessage;
+                                } else {
+                                    errorMsg.textContent = '';  // Limpiar mensaje si es válido
+                                }
+            
+                                checkFormValidity();  // Verificar si el formulario es válido
+                            });
+                        }
+        
+                        // Validar teléfono (solo números, paréntesis, guiones y espacios)
+                        const phoneInput = document.getElementById('celular');
+                        validateInput(phoneInput, /^[0-9\-\(\)\s]+$/, 'Número de teléfono inválido.');
+            
+                        // Validar documento (solo números)
+                        const documentInput = document.getElementById('documento');
+                        validateInput(documentInput, /^[0-9]+$/, 'Número de documento inválido.');
+            
+                        // Validar correo electrónico (patrón estándar)
+                        const emailInput = document.getElementById('email');
+                        validateInput(emailInput, /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$/, 'Correo electrónico inválido.');
+            
+                        // Validar edad (números y menor a 100)
+                        const edadInput = document.getElementById('edad');
+                        validateInput(edadInput, /^[0-9]+$/, 'Edad inválida.', (value) => value <= 100);
+
+
+        
+                        // Habilitar o deshabilitar el botón de envío según el estado del formulario
+                        const submitButton = document.getElementById('guardar-btn');
+                        
+                        const submitButton2 = document.getElementById('guardar-y-anadir-otro-btn');
+                        
+                        // validar si existen los botones
+                        console.log(submitButton, submitButton2);
+                        if (!submitButton || !submitButton2) {
+                            console.log('No se encontraron los botones de envío');
+                            return;
+                            } else {
+                                console.log('Se encontraron los botones de envío');
+                        }
+
+                        submitButton && (submitButton.disabled = true); // El botón comienza deshabilitado
+                        submitButton2 && (submitButton2.disabled = true); // El botón comienza deshabilitado
+
+        
+                        function checkFormValidity() {
+
+                            // deshabilitar si los campos obligatorios no estan llenos
+                            const requiredInputs = document.querySelectorAll('input[required]');
+                            const hasEmptyRequired = Array.from(requiredInputs).some(input => !input.value);
+                            submitButton && (submitButton.disabled = hasEmptyRequired);
+                            submitButton2 && (submitButton2.disabled = hasEmptyRequired);
+
+                            // // Obtener todos los campos con errores
+                            const errorMessages = document.querySelectorAll('.error-message');
+                            const hasError = Array.from(errorMessages).some(span => span.textContent !== '');
+                            // // Deshabilitar el botón si hay errores
+                            submitButton && (submitButton.disabled = hasError);
+                            submitButton2 && (submitButton2.disabled = hasError);
+
+                        }
+
+            
+                        // Inicializar validaciones
+                        checkFormValidity();
+                    });
                 ";
         }
 
@@ -519,9 +625,6 @@ class AdminCotizacionesController extends \crocodicstudio\crudbooster\controller
 	        |
 	        */
         $this->load_css = array();
-
-        // hook_after_form
-        $this->hook_after_form();
     }
 
 
@@ -1077,7 +1180,7 @@ class AdminCotizacionesController extends \crocodicstudio\crudbooster\controller
 
     public function hook_after_form()
     {
-        echo "<script>
+        return "
             document.addEventListener('DOMContentLoaded', function() {
                 // Obtener el botón que tiene el valor 'Guardar y Añadir otro'
                 const guardarYAnadirOtroBtn = document.querySelector('input[type=\"submit\"][value=\"Guardar y Añadir otro\"]');
@@ -1183,8 +1286,6 @@ class AdminCotizacionesController extends \crocodicstudio\crudbooster\controller
                 // Inicializar validaciones
                 checkFormValidity();
             });
-        </script>";
+        ";
     }
-    
-
 }
