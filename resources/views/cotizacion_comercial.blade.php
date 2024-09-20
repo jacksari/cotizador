@@ -410,12 +410,16 @@
             </tr>
 
             @foreach ($deducibles as $key => $deducible)
+            @if ($deducible['name'] != null)
+
             <tr>
                 <td class="text-left">{{ $deducible['name'] }}</td>
                 @foreach ($companies as $key_company => $company)
-                    <td class="text-center">{{$company['deducibles'][$key]['description']}}</td>
+                <td class="text-center">{{$company['deducibles'][$key]['description']}}</td>
                 @endforeach
             </tr>
+
+            @endif
             @endforeach
 
             <!-- <tr>
