@@ -71,7 +71,7 @@ class SpGetCotizacionById extends Migration
                             from cotizaciones_detalles cd
                             join productos p on p.id = cd.productos_id 
                             join companias c on c.id = cd.companias_id 
-                            join (
+                            left join (
                                 select 
                                     f.companias_id ,
                                     json_arrayagg(json_object(
