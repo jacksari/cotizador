@@ -964,12 +964,6 @@ class HomeController extends Controller
         $companies = json_decode($data->companies);
         $companies_history = json_decode($data->companies_history);
 
-        //validar que no se repitan companies, que la tasa sea distinto de null, en caso se siguen repitiendo, usar el primero
-        $companies = collect($companies)->filter(function ($item) {
-            return $item->tasa != null;
-        })->values()->all();
-        $seen = []; // Usamos un array para rastrear los 'company_id' ya vistos.
-
         $companies = array_filter($companies, function ($item) use (&$seen) {
             if (!isset($seen[$item->company_id])) {
                 $seen[$item->company_id] = true; // Marcamos el 'company_id' como visto.
