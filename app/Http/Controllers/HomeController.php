@@ -968,7 +968,7 @@ class HomeController extends Controller
         $data->companies_history = $companies_history;
 
         $seen = []; // Array para marcar los 'company_id' que ya fueron vistos.
-        $$data->companies_history = array_filter($$data->companies_history, function ($item) use (&$seen) {
+        $data->companies_history = array_filter($data->companies_history, function ($item) use (&$seen) {
             if (!isset($seen[$item->company_id])) {
                 $seen[$item->company_id] = true; // Marcamos el 'company_id' como visto.
                 return true; // Devolvemos 'true' para mantener este elemento en el array.
