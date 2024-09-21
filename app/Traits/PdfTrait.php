@@ -45,6 +45,7 @@ trait PdfTrait
         });
 
         $data->companies = $companies;
+        $data->companies = array_values($data->companies);
 
         //extract coberturas
         $coberturas = collect([]);
