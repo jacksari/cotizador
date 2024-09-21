@@ -39,15 +39,15 @@ trait PdfTrait
         $companies = collect($companies)->filter(function ($item) {
             return $item->tasa != null;
         })->values()->all();
-        $seen = []; // Usamos un array para rastrear los 'company_id' ya vistos.
+        // $seen = [];
 
-        $companies = array_filter($companies, function ($item) use (&$seen) {
-            if (!isset($seen[$item->company_id])) {
-                $seen[$item->company_id] = true; // Marcamos el 'company_id' como visto.
-                return true; // Devolvemos 'true' para mantener este elemento en el array.
-            }
-            return false; // Si el 'company_id' ya fue visto, lo omitimos.
-        });
+        // $companies = array_filter($companies, function ($item) use (&$seen) {
+        //     if (!isset($seen[$item->company_id])) {
+        //         $seen[$item->company_id] = true; // Marcamos el 'company_id' como visto.
+        //         return true; // Devolvemos 'true' para mantener este elemento en el array.
+        //     }
+        //     return false; // Si el 'company_id' ya fue visto, lo omitimos.
+        // });
 
         $data->companies = $companies;
 
