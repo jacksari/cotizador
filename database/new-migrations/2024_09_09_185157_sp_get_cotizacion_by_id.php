@@ -39,7 +39,8 @@ class SpGetCotizacionById extends Migration
                             'primaneta', x.primaneta,
                             'is_gps', x.is_gps,
                             'coberturas', x.coberturas,
-                            'deducibles', x.deducibles
+                            'deducibles', x.deducibles,
+                            'tasa', x.tasa
                         )) `values`
                     from (
                         select 
@@ -54,7 +55,8 @@ class SpGetCotizacionById extends Migration
                             y.is_gps,
                             y.coberturas,
                             y.deducibles,
-                            uc.cotizaciones_id as cotizacion_id
+                            uc.cotizaciones_id as cotizacion_id,
+                            y.tasa
                         from usos_companias uc 
                         join companias c2 on c2.id = uc.companias_id
                         left join (
@@ -67,7 +69,8 @@ class SpGetCotizacionById extends Migration
                                 cd.primatotal,
                                 cd.is_gps,
                                 cobe.`values` as coberturas,
-                                dedu.`values` as deducibles
+                                dedu.`values` as deducibles,
+                                cd.tasa
                             from cotizaciones_detalles cd
                             join productos p on p.id = cd.productos_id 
                             join companias c on c.id = cd.companias_id 
