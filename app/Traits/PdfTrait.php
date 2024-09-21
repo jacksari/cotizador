@@ -44,8 +44,7 @@ trait PdfTrait
             return false; // Si el 'company_id' ya fue visto, lo omitimos.
         });
 
-        $data->companies = $companies;
-        $data->companies = array_values($data->companies);
+        $data->companies = array_values($companies);
 
         //extract coberturas
         $coberturas = collect([]);
