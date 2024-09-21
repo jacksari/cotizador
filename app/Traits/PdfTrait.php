@@ -36,9 +36,9 @@ trait PdfTrait
 
         $companies =  $data->companies ? json_decode($data->companies) : [];
 
-        $companies = collect($companies)->filter(function ($item) {
-            return $item->tasa != null;
-        })->values()->all();
+        // $companies = collect($companies)->filter(function ($item) {
+        //     return $item->tasa != null;
+        // })->values()->all();
         // $seen = [];
 
         // $companies = array_filter($companies, function ($item) use (&$seen) {
