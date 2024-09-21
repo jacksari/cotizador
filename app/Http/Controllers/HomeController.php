@@ -975,6 +975,7 @@ class HomeController extends Controller
             }
             return false; // Si el 'company_id' ya fue visto, lo omitimos.
         });
+        $data->companies = array_values($data->companies);
 
         // $data->companies = $companies;
 
