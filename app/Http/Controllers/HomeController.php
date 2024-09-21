@@ -964,16 +964,17 @@ class HomeController extends Controller
         $companies = json_decode($data->companies);
         $companies_history = json_decode($data->companies_history);
 
-        $companies = array_filter($companies, function ($item) use (&$seen) {
+        $data->companies = $companies_history == null ? $companies : $companies_history;
+        $data->companies_history = $companies_history;
+
+        $seen = []; // Array para marcar los 'company_id' que ya fueron vistos.
+        $$data->companies_history = array_filter($$data->companies_history, function ($item) use (&$seen) {
             if (!isset($seen[$item->company_id])) {
                 $seen[$item->company_id] = true; // Marcamos el 'company_id' como visto.
                 return true; // Devolvemos 'true' para mantener este elemento en el array.
             }
             return false; // Si el 'company_id' ya fue visto, lo omitimos.
         });
-
-        $data->companies = $companies_history == null ? $companies : $companies_history;
-        $data->companies_history = $companies_history;
 
         // $data->companies = $companies;
 
